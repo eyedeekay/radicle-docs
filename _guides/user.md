@@ -1763,7 +1763,7 @@ for `schrödingers-paradox`.
 > encounter any issues, we encourage you to report them to
 > **security@radicle.xyz**.
 
-## 4. Embracing the Onion
+## 4. Embracing Anonymity
 
 **[Tor][tor]**, "The Onion Router", is a decentralized network that
 anonymizes users' online activity by routing internet traffic through
@@ -1777,23 +1777,38 @@ non-profit Tor Project was established to maintain and improve the network.
 Today, Tor is widely used by individuals, activists, journalists, and
 organizations seeking greater online privacy.</aside>
 
+**[I2P][i2p]**, "The Invisible Internet" is a decentralized network
+that anonymizes users' online activity by routing internet traffic through
+multiple encrypted relays, similarly to Tor. It does not rely on central authorities
+to maintain consensus, sacrificing some resistance to sybil attacks for greater
+relay diversity and bandwidth capacity.
+
+<aside class="span-3"> I2P has historically been a "grassroots" decentralized project
+and continues as such to this day. The developers community is mostly anonymous with
+only a few public-facing members. Today, I2P has roughly 50,000 daily users seeking
+privacy.</aside>
+
 To further enhance repository and user privacy, Radicle nodes can be
 configured to run behind Tor. This allows connections to be made to `.onion`
 addresses, as well as hiding one's IP address and exposing Radicle as a Tor
 *onion service*.
+
+Due to the similarity of I2P and Tor, it is possible to use a combination of I2P
+hidden services and I2P SOCKS proxy to use I2P instead of Tor or to mix I2P and Tor
+use for an anonymous node that spans both networks.
 
 Depending on how you configure Radicle, it offers several key advantages:
 
 * **Enhanced anonymity**: Your node's real IP address is hidden, making it
   difficult for others to track your online activities or determine your
   location.
-* **NAT traversal**: Tor automatically handles [NAT traversal][nat],
+* **NAT traversal**: Hidden Services automatically handle [NAT traversal][nat],
   eliminating the need for manual port forwarding or UPnP configuration. This
   means peers can directly connect with one another without a seed node, even
   behind a restrictive firewall.
-* **Censorship resistance**: Repositories accessible via Tor are more resilient
-  against censorship attempts, as the Tor network is designed to circumvent
-  blocking.
+* **Censorship resistance**: Repositories accessible via Tor or I2P are more
+  resilient against censorship attempts, as the Tor network is designed to
+  circumvent blocking.
 
 [nat]: https://en.wikipedia.org/wiki/NAT_traversal
 
@@ -1802,9 +1817,9 @@ peer-to-peer communication. Devices behind NAT gateways are often isolated
 with non-routable private IP addresses, making them inaccessible from the public
 internet. This is common in most consumer internet setups.
 
-Tor addresses this issue by providing static `.onion` addresses – cryptographic
-identifiers representing nodes that are routable across the Tor network. This
-allows peers behind NAT to connect directly without needing to know each
+Tor and I2P addresses this issue by providing static cryptographic addresses –
+identifiers representing nodes that are routable across the anonymous network.
+This allows peers behind NAT to connect directly without needing to know each
 other's public IP addresses, overcoming limitations faced by traditional
 peer-to-peer networks.
 
@@ -1817,12 +1832,11 @@ This chapter will explore a few distinct ways to configure Radicle with Tor:
 3. **Transparent Proxy Mode**: Leverages an existing fully transparent Tor proxy on
    the network.
 
+### Setting up a Tor Onion Service for Radicle
+
 Before proceeding, ensure you have Tor installed on your system. Use your
 preferred package manager to install it (the package name is typically "tor").
 For detailed instructions, refer to the Tor [installation guide][install-tor].
-
-
-### Setting up a Tor Onion Service for Radicle
 
 We've been collaborating with Calyx on the private `schrödingers-paradox`
 repository. Recently, we removed a compromised seed node from the repository's
@@ -1883,6 +1897,43 @@ Radicle node in the next steps.
 >
 >     $ sudo chown -R debian-tor:debian-tor /var/lib/tor/radicle
 
+### Setting up an I2P Hidden Service for Radicle
+
+Before proceeding, ensure you have I2P installed on your system. I2P is available
+in multiple distributions including the Java reference implementation. I2P
+maintains an official [Ubuntu PPA][i2ppa] and a [Debian repository][i2pdeb]. These
+instructions are for the Java version of I2P.
+
+Once you have I2P installed, let's start setting up the I2P hidden service.
+Open the I2P [Hidden Service Wizard][i2phsw] to get started.
+
+On the first page of the wizard procedure, select "`Server Tunnel`" from the radio boxes.
+
+On the second page of the wizard procedure, select "`HTTP Server`" from the "`Tunnel type`"
+dropdown list.
+
+On the third page of the wizard procedure, enter a name and description of your service
+to reference it by later. You may enter any value you wish, I recommend "`Radicle Node`"
+and "`P2P Git Participation`."
+
+On the fourth page of the wizard procedure, enter port: "`8776`" to configure the hidden
+service to forward Radicle into the I2P network.
+
+On the fifth page, select "`Automatically start tunnel when router starts`" if you intend
+to run your Radicle node immediately or do not wish to manually start your hidden service.
+If you want to periodically turn of your Radicle hidden service during normal usage, do not
+select this option.
+
+On the sixth page, review your configuration. Accept the config, or return to the previous
+pages to edit it.
+
+Once you complete the wizard procedure by accepting your settings, you will be able to see
+the hidden service address on the main "Hidden Service Manager" page by cross-referencing the
+"`Name`" you set on the second page of the wizard. It may look like:
+
+```
+ly26ohy4mq4gz7hu2fzzy4pb74fnfv6astqvknqbygvhx2dxns4a.b32.i2p
+```
 
 #### Configuring Radicle in *Mixed Mode*
 
@@ -1961,6 +2012,88 @@ This configuration allows our node to use Tor for `.onion` connections while
 maintaining direct connections for regular traffic, balancing our privacy and
 performance needs.
 
+#### Configuring Radicle in *Mixed Mode* with I2P and Tor
+
+Now that we have I2P properly set up, it's time to configure the networking on
+our Radicle node to work with it. This configuration maximizes both anonymity
+and versatility by routing all traffic over *either* Tor or I2P, and never over
+the clear web. This limits speed but improves versatility, and is the recommened
+approach to configuring an I2P/Tor proxy.
+
+I2P doesn't ship with a SOCKS proxy and does not normally allow Tor access.
+This means we'll need to set up our own SOCKS proxy with it's own internal
+client identity for I2P. This allows you to "isolate" the Radicle node from
+the rest of I2P traffic as well, preventing "dirty connection" problems.
+
+First, we need to install an I2P SOCKS proxy plugin. This plugin was written
+by the former I2P maintainer, zzz, and is still maintained by him. It forwards
+non-I2P traffic to a local SOCKS5 proxy, and uses Tor by default.
+
+Go to the [I2P Plugins page][i2pp]. Under "Install from URL" paste the download
+link to the signed I2P plugin package below:
+
+```
+http://stats.i2p/i2p/plugins/socksoutproxy.su3
+```
+
+Click "`Install Plugin`" to complete the plugin setup.
+
+Now, return to the [Hidden Service Wizard][i2phsw] to create your SOCKS proxy.
+On the first page of the wizard procedure, select the "`Client Tunnel`" radio button to begin.
+
+On the second page of the wizard procedure, chose `SOCKS 4/4a/5` from the dropdown menu.
+
+On the third page of the wizard procedure, enter a name and description for your SOCKS proxy
+like you did for your server.
+
+On the fourth page of the wizard procedure, leave "`Outproxies`" blank.
+
+On the fifth page of the wizard procedure, choose a port number and configure the SOCKS proxy
+to listen on `127.0.0.1`. I use port "`7650`" for my I2P SOCKS proxy.
+
+On the sixth page select "`Automatically start tunnel when router starts`."
+
+Confirm your settings and complete the wizard.
+
+After completing the wizard, open your new SOCKS proxy tunnel in the Hidden Services Manager
+by cross-referencing the name you chose on the third page of the wizard. On the tunnel config
+page, click the "Use Outproxy Plugin" checkbox and save the settings.
+
+Next we set up a global proxy for all address types:
+
+```json
+"node": {
+    ...
+    "proxy": "127.0.0.1:7650"
+}
+```
+
+Then, we change the `mode` for `.onion` addresses to `forward`, and remove
+the `proxy` configuration from there:
+
+```json
+"node": {
+    ...
+    "onion": {
+        "mode": "forward"
+    }
+}
+```
+
+Finally, if we want our `.b32.i2p` address to be publicly *discoverable* on the
+network, we add it to our `externalAddresses`, including the port. This will
+configure our node to advertise its `.b32.i2p` address to peers.
+
+```json
+"node": {
+    ...
+    "externalAddresses": [
+        "ly26ohy4mq4gz7hu2fzzy4pb74fnfv6astqvknqbygvhx2dxns4a.b32.i2p:8776",
+    ]
+}
+```
+
+
 #### Making connections
 
 Now that we have updated our configuration, we can start up our node again:
@@ -2015,7 +2148,7 @@ through Tor, at the expense of network latency. These options route all Radicle
 traffic through the Tor network, including to nodes that are not configured
 with Tor.
 
-#### Full Proxy Mode
+#### Full Proxy Mode for Tor
 
 Full Proxy Mode routes all traffic through Tor for maximum anonymity.
 
@@ -2077,6 +2210,8 @@ to resolve `.onion` addresses.
 > encounter any issues, we encourage you to report them to
 > **security@radicle.xyz**.
 
+#### Full Proxy Mode for I2P
+
 [proto]: /guides/protocol/
 [seeder]: /guides/seeder/
 [zulip]: https://radicle.zulipchat.com/
@@ -2085,6 +2220,11 @@ to resolve `.onion` addresses.
 [bt]: https://en.wikipedia.org/wiki/BitTorrent
 [tor]: https://www.torproject.org
 [install-tor]: https://community.torproject.org/onion-services/setup/install/
+[i2p]: https://geti2p.net
+[i2ppa]: https://launchpad.net/~i2p-maintainers/+archive/ubuntu/i2p
+[i2pdeb]: https://deb.i2pgit.org
+[i2phsw]: http://127.0.0.1:7657/i2ptunnel/wizard
+[i2pp]: http://127.0.0.1:7657/configplugins
 [cyph-man]: https://www.activism.net/cypherpunk/manifesto.html
 [heartwood]: https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
 [cobs]: /guides/protocol/#collaborative-objects
